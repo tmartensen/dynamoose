@@ -3652,6 +3652,36 @@ describe("Model", () => {
 					});
 				});
 
+				it("Should send correct ConditionalExpression for hash key if exists is passed into options", async () => {
+					deleteItemFunction = () => Promise.resolve();
+					await callType.func(User).bind(User)(1, {"exists": true, "return": null});
+					expect(deleteItemParams).to.be.an("object");
+					expect(deleteItemParams).to.eql({
+						"Key": {"id": {"N": "1"}},
+						"TableName": "User",
+						"ConditionExpression": "attribute_exists(#__hash_key)",
+						"ExpressionAttributeNames": {
+							"#__hash_key": "id"
+						}
+
+					})
+				});
+
+				it("Should send correct ConditionalExpression for hash and range keys if exists is passed into options", async () => {
+					deleteItemFunction = () => Promise.resolve();
+					User = dynamoose.model("User", {"id": Number, "name": {"type": String, "rangeKey": true}});
+					await callType.func(User).bind(User)({"id": 1, "name": "Charlie"}, {"exists": true, "return": null});
+					expect(deleteItemParams).to.be.an("object");
+					expect(deleteItemParams).to.eql({
+						"Key": {"id": {"N": "1"}, "name": {"S" : "Charlie"}},
+						"TableName": "User",
+						"ConditionExpression": "attribute_exists(#__hash_key) AND attribute_exists(#__range_key)",
+						"ExpressionAttributeNames": {
+							"#__hash_key": "id",
+							"#__range_key": "name"
+						}
+					})
+				})
 
 				it("Should return request if return request setting is set", async () => {
 					const result = await callType.func(User).bind(User)(1, {"return": "request"});

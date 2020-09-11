@@ -206,6 +206,7 @@ interface ModelGetSettings {
 }
 interface ModelDeleteSettings {
 	return: null | "request";
+	exists?: boolean;
 }
 interface ModelBatchPutSettings {
 	return: "response" | "request";
@@ -887,11 +888,30 @@ export class Model<T extends DocumentCarrier> {
 		if (typeof settings === "undefined") {
 			settings = {"return": null};
 		}
-
-		const deleteItemParams: DynamoDB.DeleteItemInput = {
+		if (typeof settings === "object" && !settings.return ) {
+			settings = {...settings, "return": null}
+		}
+		let deleteItemParams: DynamoDB.DeleteItemInput = {
 			"Key": this.Document.objectToDynamo(convertObjectToKey.bind(this)(key)),
-			"TableName": this.name
+			"TableName": this.name,
 		};
+		if (settings.exists) {
+			const hashKeyCondition = "attribute_exists(#__hash_key)";
+			const rangeKeyCondition = "attribute_exists(#__range_key)";
+			let conditionExpression: string = hashKeyCondition;
+			let expressionAttributeNames: Record<string, string> = {"#__hash_key": this.getHashKey()};
+			const rangeKey = this.getRangeKey();
+			if (rangeKey) {
+				conditionExpression = `${hashKeyCondition} AND ${rangeKeyCondition}`;
+				expressionAttributeNames = {...expressionAttributeNames, "#__range_key": rangeKey}
+ 			}
+
+			deleteItemParams = {
+				...deleteItemParams,
+				"ConditionExpression": conditionExpression,
+				"ExpressionAttributeNames": expressionAttributeNames
+			}
+		}
 		if (settings.return === "request") {
 			if (callback) {
 				const localCallback: CallbackType<DynamoDB.DeleteItemInput, AWSError> = callback as CallbackType<DynamoDB.DeleteItemInput, AWSError>;
